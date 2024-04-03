@@ -1,13 +1,15 @@
-import React, { ChangeEvent, DragEvent, useState } from 'react';
+import React, { ChangeEvent, DragEvent, useRef, useState } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import './App.css';
 import clsx from 'clsx';
 
 const cellSize = 30;
 type Char = { id: string, str: string, selected: boolean, x: number, y: number };
+type Area = { point1: { x: number; y: number }, point2: { x: number; y: number } };
 
 function App() {
 	const [value, setValue] = useState<Char[]>([]);
+	const area = useRef<Area | null>(null);
 	const enteredString = value.map(character => character.str).join('');
 
 	const onChangeInput = (event: ChangeEvent<HTMLInputElement>) => {
@@ -15,7 +17,7 @@ function App() {
 			event.target.value
 				.split('')
 				.map((inputChar, index) => {
-					return { id: uuidv4(), str: inputChar, selected: false, x: (index * cellSize) + 300, y: 180 }
+					return { id: uuidv4(), str: inputChar, selected: false, x: (index * cellSize) + 300, y: 180 };
 				})
 		);
 	};
@@ -40,38 +42,70 @@ function App() {
 					return { ...char, selected: false, x: char.x - moveX, y: char.y - moveY };
 				}
 				return char;
-			}))
+			}));
+
 		} else {
 			setValue(prev => prev.map(char => {
 				if(char.id === cell?.id) {
-					return { ...cell, x: elem.x, y: elem.y }
+					return { ...cell, x: elem.x, y: elem.y };
 				} else if(char.id === elem.id) {
-					return { ...char, x: alignedX, y: alignedY }
+					return { ...char, x: alignedX, y: alignedY };
 				}
 				return char;
-			}))
+			}));
 		}
 	};
 
 	const selectCharacter = (event: React.MouseEvent<HTMLHeadingElement, MouseEvent>, elem: Char) => {
-		if(!event.ctrlKey || event.button !== 0) return
+		if(!event.ctrlKey || event.button !== 0) return;
 		setValue(prev => prev.map(char => {
 			if(char.id === elem.id) {
-				return { ...char, selected: !char.selected }
+				return { ...char, selected: !char.selected };
 			}
 
 			return char;
-		}))
-	}
+		}));
+	};
+
+	const mouseDownHandler = (event: React.MouseEvent<HTMLDivElement, MouseEvent>) => {
+		area.current = { point1: { x: event.pageX, y: event.pageY }, point2: { x: event.pageX, y: event.pageY } };
+	};
+
+	const mouseUpHandler = (event: React.MouseEvent<HTMLDivElement, MouseEvent>) => {
+		console.log(area);
+		if(!area.current) return;
+		area.current = { ...area.current, point2: { x: event.pageX, y: event.pageY } };
+		const { point1, point2 } = area.current;
+
+		if(point1.x === point2.x && point1.y === point2.y) return; // disable selection if it's a click
+
+		setValue(prev => {
+			return prev.map(char => {
+				// select chars that are inside selected area
+				if(
+					((char.x >= point1.x && char.x <= point2.x) || (char.x >= point2.x && char.x <= point1.x)) &&
+					((char.y >= point1.y && char.y <= point2.y) || (char.y >= point2.y && char.y <= point1.y))
+				) {
+					return { ...char, selected: true };
+				}
+				return { ...char, selected: false };
+			});
+		});
+	};
 
 	return (
-		<div className="relative min-w-[100vw] min-h-screen" onDragOver={ e => dragOverHandler(e) }>
+		<div
+			className="relative min-w-[100vw] min-h-screen"
+			onDragOver={ e => dragOverHandler(e) }
+			onMouseDown={ e => mouseDownHandler(e) }
+			onMouseUp={ e => mouseUpHandler(e) }
+		>
 			<div className="flex items-center ml-[300px] pt-[120px]">
-				<label htmlFor="inputValue" className="text-xl px-2">Value: </label>
+				<label htmlFor="inputValue" className="text-xl px-2 select-none">Value: </label>
 				<input
 					id="inputValue"
 					type="text"
-					className="border text-xl p-2"
+					className="border text-xl p-2 select-none"
 					value={ enteredString }
 					onChange={ onChangeInput }
 				/>
